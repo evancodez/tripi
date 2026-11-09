@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tripi</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div id="ui">
+  <div id="card">
+    <h1>tripi</h1>
+    <p id="say">drop a song anywhere</p>
+    <ul id="songs"></ul>
+    <label id="choose">choose a file<input id="file" type="file" accept="audio/*" hidden></label>
+    <p id="keys"><b>space</b> play <b>c</b> colour <b>n</b> new take <b>f</b> full screen <b>h</b> hide</p>
+  </div>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="note"></div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

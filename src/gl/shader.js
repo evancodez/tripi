@@ -6,7 +6,7 @@
 // its width (v, period 2*pi). The camera looks at the ribbon through a conformal map built like a
 // 2D potential flow: a uniform stream (the ribbon lying flat) plus point sources and sinks (the
 // ribbon rolled into tunnels) plus a doublet (the ribbon flowing round a disc). Because the map
-// is conformal, squares stay square however the ribbon is bent.
+// is conformal, squares stay square however the ribbon is bent. See film/view.js.
 
 export const MAXP = 48;        // ribbon entries (patterns in order of appearance)
 export const WAVES = 6;        // waves per pattern: 0..2 in group 1, 3..5 in group 2
@@ -30,11 +30,10 @@ uniform vec4 uRib;                    // x0 (texel of u = 0), texels per unit u,
 uniform vec4 uWave[${MAXP * WAVES}];  // alpha, n, phase, amplitude
 uniform vec4 uPat[${MAXP}];           // c1, c2, lambda (0 sum .. 1 product), threshold
 uniform vec4 uPat2[${MAXP}];          // mean coverage at duty 0, coverage slope, largest wave number, -
-uniform vec4 uCam;                    // a (complex), b (complex): w = a p + b
-uniform vec4 uFlow;                   // A (stream strength), tilt, lens, |a|
-uniform vec4 uPole[${POLES}];         // kappa (complex), charge q: z -= q log(1 - kappa w)
-uniform vec4 uDbl;                    // D (complex), e (complex): z += D / (w - e)
-uniform vec4 uRef;                    // z at the reference point (complex), global duty, -
+uniform vec4 uStream;                 // S (complex), tilt, lens
+uniform vec4 uPole[${POLES}];         // p_j (screen), charge q, 1 / sqrt(1 + |p_j|^2): z -= q log(p_j - p)
+uniform vec4 uDbl;                    // D (complex), e (screen): z += D / (p - e)
+uniform vec4 uRef;                    // u of "now", -, global duty, -
 uniform vec4 uPlate[3];               // per ink: screen offset (xy), offset along u, twist
 uniform vec3 uInk[3];
 uniform vec3 uPaper;
@@ -64,29 +63,28 @@ vec2 pat(int k, float u, float v) {
 float plate(vec2 p, vec4 off) {
   p += off.xy;
   // the lens: a soft push toward the viewer round the middle of the frame
-  p *= 1.0 - uFlow.z * exp(-1.6 * dot(p, p));
+  p *= 1.0 - uStream.w * exp(-1.6 * dot(p, p));
   // the tilt: the screen as a plane falling away, with no lighting, only foreshortening
-  float ty = 1.0 / max(1.0 - uFlow.y * p.y, 0.05);
+  float ty = 1.0 / max(1.0 - uStream.z * p.y, 0.05);
   p *= ty;
-  vec2 w = cmul(uCam.xy, p) + uCam.zw;
 
   // the flow
-  vec2 z = uFlow.x * w;
-  vec2 dz = vec2(uFlow.x, 0.0);
+  vec2 z = cmul(uStream.xy, p);
+  vec2 dz = uStream.xy;
   for (int j = 0; j < ${POLES}; j++) {
     vec4 pl = uPole[j];
-    vec2 t = vec2(1.0, 0.0) - cmul(pl.xy, w);
-    z -= pl.z * clog(t);
-    dz += pl.z * cdiv(pl.xy, t);
+    vec2 t = pl.xy - p;
+    z -= pl.z * clog(t * pl.w);
+    dz += pl.z * cdiv(vec2(1.0, 0.0), t);
   }
-  vec2 d = w - uDbl.zw;
+  vec2 d = p - uDbl.zw;
   vec2 di = cdiv(vec2(1.0, 0.0), d);
   z += cmul(uDbl.xy, di);
   dz -= cmul(uDbl.xy, cmul(di, di));
-  z -= uRef.xy;
+  z.x -= uRef.x;
 
   float px = 2.0 / uRes.y;
-  float J = length(dz) * uFlow.w * ty * ty * px;       // ribbon units per pixel
+  float J = length(dz) * ty * ty * px;                 // ribbon units per pixel
   float u = z.x;
   float v = z.y;
   float uw = u;                                        // u as the waves see it

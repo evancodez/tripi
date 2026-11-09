@@ -26,7 +26,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const a = analyze(pcm, sr);
   const ms = performance.now() - t0;
   const mmss = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
-  console.log(`${file}\n  ${a.duration.toFixed(1)} s, ${a.bpm.toFixed(1)} bpm, ${a.meter}/4, ${a.beats.length} beats, ${a.bars.length} bars, key ${'C C# D D# E F F# G G# A A# B'.split(' ')[a.key.tonic]}${a.key.minor ? 'm' : ''}, analysed in ${ms.toFixed(0)} ms`);
+  console.log(`${file}\n  ${a.duration.toFixed(1)} s, ${a.bpm.toFixed(1)} bpm, ${a.meter}/4, ${a.beats.length} beats, ${a.bars.length} bars, key ${'C C# D D# E F F# G G# A A# B'.split(' ')[a.key.tonic]}${a.key.minor ? 'm' : ''}, pulse ${a.pulse.toFixed(2)} busy ${a.busy.toFixed(3)}, analysed in ${ms.toFixed(0)} ms`);
   for (const s of a.sections) console.log(`  ${mmss(s.t0).padStart(7)}  ${String(s.bar1 - s.bar0).padStart(3)} bars  ${String.fromCharCode(65 + s.label)}  energy ${s.energy.toFixed(2)}  lift ${s.lift >= 0 ? '+' : ''}${s.lift.toFixed(2)} near ${(s.near??9).toFixed(2)} nov ${s.nov.toFixed(2)}  ${'#'.repeat(Math.round(s.energy * 30))}`);
   const j = process.argv.indexOf('--json');
   if (j > 0) writeFileSync(process.argv[j + 1], JSON.stringify(a, (k, v) => ArrayBuffer.isView(v) ? Array.from(v, x => +x.toFixed(4)) : v));

@@ -391,5 +391,8 @@ export function analyze(pcmIn, srIn, onProgress = () => {}) {
   }
 
   onProgress(1);
-  return { duration, bpm, meter, beats, strong, bars, sections, fps, loud, loudSlow, bright, melody, melConf, bass, onset, chords, key };
+  // how plainly the song has a beat at all (0 = none, about 0.5 = a drum machine), and how busy it is
+  const pulse = clamp(ac[bestLag], 0, 1);
+  let busy = 0; for (let i = 0; i < onset.length; i++) busy += onset[i] > 0.25 ? 1 : 0; busy /= onset.length;
+  return { duration, bpm, meter, pulse, busy, beats, strong, bars, sections, fps, loud, loudSlow, bright, melody, melConf, bass, onset, chords, key };
 }

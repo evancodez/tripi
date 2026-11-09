@@ -8,7 +8,7 @@
 import { createRenderer } from '../src/gl/renderer.js';
 import { buildRibbon } from '../src/film/ribbon.js';
 import { PATTERNS } from '../src/film/patterns.js';
-import { V } from '../src/film/view.js';
+import { V, squeeze, park } from '../src/film/view.js';
 
 const canvas = document.getElementById('c');
 const R = createRenderer(canvas);
@@ -24,9 +24,11 @@ window.bench = {
     const duty = spec.duty ? new Function('u', 'return ' + spec.duty) : null;
     const sway = spec.sway ? new Function('u', 'return ' + spec.sway) : null;
     R.setRibbon(buildRibbon({ uMin: -20, uMax: entries.length * gap + 20, entries, duty, sway, flips: spec.flips || [] }));
+    // view: { SMAG, SROT, TILT, ..., poles: [[x, y] | null x4] } with poles given on screen
     const view = new Float32Array(V.N);
-    view[V.A] = 1;
-    for (const k in spec.view || {}) view[V[k]] = spec.view[k];
+    for (let j = 0; j < 4; j++) park(j === 3 ? Math.PI : 0, view, V.P1R + 2 * j);
+    for (const k in spec.view || {}) if (k !== 'poles') view[V[k]] = spec.view[k];
+    (spec.view?.poles || []).forEach((p, j) => { if (p) squeeze(p[0], p[1], view, V.P1R + 2 * j); });
     R.resize(innerWidth, innerHeight);
     R.draw({ view, ucam: spec.ucam ?? 0, spin: spec.spin ?? 0, colour: spec.colour ?? 0, inks: INKS, paper: [1, 0.985, 0.95] });
     R.gl.finish();

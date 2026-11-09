@@ -1,7 +1,7 @@
 // WebGL2 renderer: one program, one triangle, one draw call a frame. Nothing is allocated or
 // compiled after create(); a frame is a few hundred numbers handed to the shader.
 import { VERT, FRAG, MAXP, WAVES, POLES } from './shader.js';
-import { V, mapPoint } from '../film/view.js';
+import { V, nowU, pole as poleOf } from '../film/view.js';
 
 const TAU = Math.PI * 2;
 
@@ -27,7 +27,7 @@ export function createRenderer(canvas) {
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link: ' + gl.getProgramInfoLog(prog));
   gl.useProgram(prog);
   const U = {};
-  for (const n of ['uRes', 'uRibbon', 'uRib', 'uWave', 'uPat', 'uPat2', 'uCam', 'uFlow', 'uPole', 'uDbl', 'uRef', 'uPlate', 'uInk', 'uPaper', 'uMode', 'uRec']) {
+  for (const n of ['uRes', 'uRibbon', 'uRib', 'uWave', 'uPat', 'uPat2', 'uStream', 'uPole', 'uDbl', 'uRef', 'uPlate', 'uInk', 'uPaper', 'uMode', 'uRec']) {
     U[n] = gl.getUniformLocation(prog, n);
   }
   const vao = gl.createVertexArray();
@@ -51,7 +51,6 @@ export function createRenderer(canvas) {
   const pole = new Float32Array(POLES * 4);
   const plate = new Float32Array(12);
   const ink = new Float32Array(9);
-  const zref = [0, 0];
   let ribbon = null;
 
   function setRibbon(rb) {
@@ -95,17 +94,12 @@ export function createRenderer(canvas) {
     gl.uniform4fv(U.uWave, wave);
     gl.uniform4fv(U.uPat2, pat2);
 
-    const zoom = Math.exp(s[V.ZOOM]);
-    gl.uniform4f(U.uCam, zoom * Math.cos(s[V.ROT]), zoom * Math.sin(s[V.ROT]), s[V.PANX], s[V.PANY]);
-    gl.uniform4f(U.uFlow, s[V.A], s[V.TILT], s[V.LENS], zoom);
-    for (let j = 0; j < POLES; j++) {
-      pole[j * 4] = s[V.K1X + 2 * j]; pole[j * 4 + 1] = s[V.K1Y + 2 * j];
-      pole[j * 4 + 2] = j === 3 ? -1 : 1; pole[j * 4 + 3] = 0;
-    }
+    const sr = s[V.SMAG] * Math.cos(s[V.SROT]), si = s[V.SMAG] * Math.sin(s[V.SROT]);
+    gl.uniform4f(U.uStream, sr, si, s[V.TILT], s[V.LENS]);
+    for (let j = 0; j < POLES; j++) poleOf(s, j, pole, j * 4);
     gl.uniform4fv(U.uPole, pole);
-    gl.uniform4f(U.uDbl, s[V.DX], s[V.DY], s[V.EX], s[V.EY]);
-    mapPoint(s, s[V.REFX], s[V.REFY], zref);
-    gl.uniform4f(U.uRef, zref[0], zref[1], s[V.DUTY], 0);
+    gl.uniform4f(U.uDbl, sr * s[V.DR], si * s[V.DR], s[V.EX], s[V.EY]);
+    gl.uniform4f(U.uRef, nowU(s), 0, s[V.DUTY], 0);
     gl.uniform4f(U.uRib, (f.ucam - ribbon.u0) * ribbon.scale, ribbon.scale, ribbon.W - 1, 0);
 
     const c = f.colour || 0;
@@ -115,10 +109,11 @@ export function createRenderer(canvas) {
       const inkAmt = Math.min(1, c * 3);
       for (let k = 0; k < 3; k++) {
         const th = ang + k * TAU / 3;
-        plate[k * 4] = 0.018 * sp * Math.cos(th);
-        plate[k * 4 + 1] = 0.018 * sp * Math.sin(th);
-        plate[k * 4 + 2] = 0.10 * sp * Math.cos(th * 0.5 + k * 2.1);
-        plate[k * 4 + 3] = 0.05 * sp * (k - 1);
+        // a little plain misregistration on the page, more along the ribbon, and a twist that grows away from "now"
+        plate[k * 4] = 0.02 * sp * Math.cos(th);
+        plate[k * 4 + 1] = 0.02 * sp * Math.sin(th);
+        plate[k * 4 + 2] = 0.42 * sp * Math.cos(th * 0.5 + k * 2.1);
+        plate[k * 4 + 3] = 0.09 * sp * (k - 1);
         for (let j = 0; j < 3; j++) ink[k * 3 + j] = f.inks[k][j] * inkAmt;
       }
       gl.uniform4fv(U.uPlate, plate);
