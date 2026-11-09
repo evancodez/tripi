@@ -60,10 +60,17 @@ function setFilm(f) {
   R.setRibbon(f.ribbon);
   rec.start = f.ucam[0];
   rec.end = f.ucam[f.frames - 1];
-  // on the record the lattice is K times finer than in the film: about 160 cells round the disc
-  rec.k = Math.max(2, Math.round(160 / f.n0));
+  fineness();
 }
 setFilm(idle);
+
+// On the record the lattice is K times finer than in the film. K is as large as the screen can draw: cells
+// about five pixels across where they are smallest, at the label. A bigger or denser screen gets a finer record.
+function fineness() {
+  if (!film) return;
+  const cells = Math.PI * 2 * RIN * scale * canvas.height / 2 / 5;
+  rec.k = clamp(Math.round(cells / film.n0), 2, Math.round(220 / film.n0));
+}
 
 function resize() {
   const dpr = window.devicePixelRatio || 1;
@@ -71,6 +78,7 @@ function resize() {
   scale = Math.min(1, innerWidth / innerHeight * 0.98);
   const d = Math.round(RIN * scale * innerHeight * 0.82);
   $('label').style.width = d + 'px';
+  fineness();
 }
 addEventListener('resize', resize);
 resize();

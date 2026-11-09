@@ -1,6 +1,6 @@
 // The lab: runs the real page in a real, GPU-backed, muted headless Chrome and lets a script look at it.
 //
-//   node tools/lab.mjs <script.mjs> [--size 1280,720] [--url http://localhost:5400/] [--out <dir>] [--headed]
+//   node tools/lab.mjs <script.mjs> [--size 1280,720] [--dpr 2] [--url http://localhost:5400/] [--out <dir>] [--headed]
 //
 // The script's default export receives { page, save, sleep, out, log, args }:
 //   page.eval(fnOrExpr, ...args)   evaluate in the page (async is fine), returns the JSON result
@@ -76,7 +76,7 @@ listeners.push(m => {
 await send('Runtime.enable');
 await send('Page.enable');
 await send('Inspector.enable');
-await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
+await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: +opt('dpr', 1), mobile: false });
 
 const save = (name, data) => {
   const file = join(out, name);
