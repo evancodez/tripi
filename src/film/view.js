@@ -29,7 +29,7 @@ export const V = {
   N: 20,
 };
 export const POLES = 4;
-const FAR = 0.9998;     // squeezed radius that stands for infinity
+export const FAR = 0.9998;     // squeezed radius that stands for infinity
 
 // put a pole at a screen point, or park it at infinity in direction th
 export function squeeze(x, y, out, o) { const d = Math.hypot(x, y); out[o] = d / (1 + d); out[o + 1] = Math.atan2(y, x); }

@@ -1,19 +1,18 @@
-html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+html, body { margin: 0; height: 100%; background: #fff; overflow: hidden; }
 body { font: 500 13px/1.5 "Helvetica Neue", Helvetica, Arial, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
 #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
 
-#ui { position: fixed; inset: 0; pointer-events: none; transition: opacity .5s; }
-body.hide #ui, body.quiet #ui { opacity: 0; }
-body.hide, body.quiet { cursor: none; }
-body.quiet #ui.show { opacity: 1; }
+#ui { position: fixed; inset: 0; pointer-events: none; transition: opacity .4s; }
+body.hide #ui { opacity: 0; }
+body.hide, body.playing { cursor: none; }
 
-/* the card: one hard black rectangle, like a title block on a print */
+/* the card: one hard black square, like a title block on a print. It sits on the record's label. */
 #card {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: 300px; padding: 28px 32px 22px; background: #000; color: #fff; pointer-events: auto;
-  transition: opacity .5s, visibility .5s;
+  opacity: 0; visibility: hidden; transition: opacity .4s, visibility .4s;
 }
-body.playing #card { opacity: 0; visibility: hidden; }
+body.list #card { opacity: 1; visibility: visible; }
 h1 { margin: 0 0 14px; font-size: 44px; line-height: 1; font-weight: 700; letter-spacing: -0.03em; }
 #say { margin: 0 0 14px; }
 #songs { list-style: none; margin: 0 0 12px; padding: 0; border-top: 1px solid #fff; }
@@ -29,13 +28,25 @@ h1 { margin: 0 0 14px; font-size: 44px; line-height: 1; font-weight: 700; letter
 #keys { margin: 20px 0 0; font-size: 11px; opacity: .6; word-spacing: .08em; }
 #keys b { font-weight: 700; margin-left: .7em; }
 #keys b:first-child { margin-left: 0; }
-body.busy #songs, body.busy #choose { opacity: .35; pointer-events: none; }
 
-/* the hairline: where you are in the song */
-#bar { position: absolute; left: 0; right: 0; bottom: 0; height: 18px; pointer-events: auto; cursor: pointer; mix-blend-mode: difference; opacity: 0; transition: opacity .5s; }
-body.loaded #bar { opacity: 1; }
-#fill { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: #fff; }
-#bar:hover #fill { height: 6px; }
+/* the label: what is printed at the middle of the record */
+#label {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  text-align: center; font-size: 11px; line-height: 1.45; letter-spacing: .09em; text-transform: uppercase;
+  opacity: 0; transition: opacity .5s;
+}
+body.record #label, body.busy #label { opacity: 1; }
+body.list #label, body.playing #label { opacity: 0; }
+#title { font-weight: 700; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+#time { margin-top: 5px; opacity: .7; font-variant-numeric: tabular-nums; }
 
-#note { position: absolute; left: 18px; bottom: 26px; padding: 4px 8px; background: #000; color: #fff; font-size: 11px; opacity: 0; transition: opacity .4s; }
+/* the ring: where a click on the record would take you */
+#ring {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  border: 1.5px solid #fff; border-radius: 50%; box-sizing: border-box; mix-blend-mode: difference;
+  opacity: 0; transition: opacity .2s;
+}
+#ring.on { opacity: 1; }
+
+#note { position: absolute; left: 18px; bottom: 18px; padding: 4px 8px; background: #000; color: #fff; font-size: 11px; opacity: 0; transition: opacity .4s; }
 #note.on { opacity: 1; }

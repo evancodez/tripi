@@ -27,7 +27,7 @@ export function createRenderer(canvas) {
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link: ' + gl.getProgramInfoLog(prog));
   gl.useProgram(prog);
   const U = {};
-  for (const n of ['uRes', 'uRibbon', 'uRib', 'uWave', 'uPat', 'uPat2', 'uStream', 'uPole', 'uDbl', 'uRef', 'uPlate', 'uInk', 'uPaper', 'uMode', 'uRec']) {
+  for (const n of ['uRes', 'uRibbon', 'uRib', 'uWave', 'uPat', 'uPat2', 'uStream', 'uPole', 'uDbl', 'uRef', 'uPlate', 'uInk', 'uPaper', 'uMode', 'uRec', 'uRec2']) {
     U[n] = gl.getUniformLocation(prog, n);
   }
   const vao = gl.createVertexArray();
@@ -120,8 +120,13 @@ export function createRenderer(canvas) {
       gl.uniform3fv(U.uInk, ink);
       gl.uniform3f(U.uPaper, 1 + (f.paper[0] - 1) * inkAmt, 1 + (f.paper[1] - 1) * inkAmt, 1 + (f.paper[2] - 1) * inkAmt);
     }
+    // the record: f.rec = { B, start, end (u, absolute), rout, rin, k }
     const r = f.rec;
-    if (r) gl.uniform4f(U.uRec, r[0], r[1], r[2], r[3]); else gl.uniform4f(U.uRec, 0, 0, 0, 1);
+    if (r && r.B > 0) {
+      const bl = Math.min(1, Math.max(0, (r.B - 0.52) / 0.48)), bs = bl * bl * (3 - 2 * bl), off = 40 * (1 - bs) * (1 - bs);
+      gl.uniform4f(U.uRec, r.B, r.start - f.ucam, (r.end - r.start) / Math.log(r.rout / r.rin), 0);
+      gl.uniform4f(U.uRec2, r.k, r.rout, r.end - f.ucam, off);
+    } else { gl.uniform4f(U.uRec, 0, 0, 0, 1); gl.uniform4f(U.uRec2, 1, 1, 0, 0); }
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
