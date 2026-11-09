@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>tripi bench</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style>
+<canvas id="c"></canvas>
+<script type="module">
+// A bare test bed for patterns and views: no song, no director. Driven from tools/lab.mjs.
+import { createRenderer } from '../src/gl/renderer.js';
+import { buildRibbon } from '../src/film/ribbon.js';
+import { PATTERNS } from '../src/film/patterns.js';
+import { V } from '../src/film/view.js';
+
+const canvas = document.getElementById('c');
+const R = createRenderer(canvas);
+R.resize(innerWidth, innerHeight);
+const INKS = [[1, 0.28, 0.69], [0, 0.47, 0.75], [1, 0.91, 0]];
+
+window.bench = {
+  V, R,
+  // spec: { seq: [[name, ...args], ...], gap, width, view: {A:1, ZOOM:..}, ucam, spin, colour, duty, sway, flips }
+  render(spec) {
+    const gap = spec.gap ?? 3, width = spec.width ?? 1.2;
+    const entries = spec.seq.map((s, i) => ({ pattern: PATTERNS[s[0]](...s.slice(1)), u: i * gap, width }));
+    const duty = spec.duty ? new Function('u', 'return ' + spec.duty) : null;
+    const sway = spec.sway ? new Function('u', 'return ' + spec.sway) : null;
+    R.setRibbon(buildRibbon({ uMin: -20, uMax: entries.length * gap + 20, entries, duty, sway, flips: spec.flips || [] }));
+    const view = new Float32Array(V.N);
+    view[V.A] = 1;
+    for (const k in spec.view || {}) view[V[k]] = spec.view[k];
+    R.resize(innerWidth, innerHeight);
+    R.draw({ view, ucam: spec.ucam ?? 0, spin: spec.spin ?? 0, colour: spec.colour ?? 0, inks: INKS, paper: [1, 0.985, 0.95] });
+    R.gl.finish();
+    return true;
+  },
+  // time n frames of this spec drawn back to back
+  time(spec, n = 60) {
+    this.render(spec);
+    const px = new Uint8Array(4);
+    R.gl.readPixels(0, 0, 1, 1, R.gl.RGBA, R.gl.UNSIGNED_BYTE, px);
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) { spec.ucam = (spec.ucam ?? 0) + 0.01; this.render(spec); }
+    R.gl.readPixels(0, 0, 1, 1, R.gl.RGBA, R.gl.UNSIGNED_BYTE, px);
+    return (performance.now() - t0) / n;
+  },
+  ready: true,
+};
+</script>

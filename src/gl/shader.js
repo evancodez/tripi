@@ -1,0 +1,151 @@
+// The one shader. Everything tripi draws comes out of this single program, driven only by uniforms,
+// so nothing is ever compiled while a song plays.
+//
+// The picture is the sign of a field made of a few interfering waves that live on "the ribbon":
+// an endless strip of pattern with the whole song painted along its length (u) and wrapped round
+// its width (v, period 2*pi). The camera looks at the ribbon through a conformal map built like a
+// 2D potential flow: a uniform stream (the ribbon lying flat) plus point sources and sinks (the
+// ribbon rolled into tunnels) plus a doublet (the ribbon flowing round a disc). Because the map
+// is conformal, squares stay square however the ribbon is bent.
+
+export const MAXP = 48;        // ribbon entries (patterns in order of appearance)
+export const WAVES = 6;        // waves per pattern: 0..2 in group 1, 3..5 in group 2
+export const POLES = 4;
+
+export const VERT = `#version 300 es
+void main() {
+  // one triangle that covers the screen
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+export const FRAG = `#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+
+uniform vec2 uRes;
+uniform sampler2D uRibbon;            // W x 1, RGBA32F: pattern position, duty, sway, signed distance to a polarity flip
+uniform vec4 uRib;                    // x0 (texel of u = 0), texels per unit u, W - 1, record blend
+uniform vec4 uWave[${MAXP * WAVES}];  // alpha, n, phase, amplitude
+uniform vec4 uPat[${MAXP}];           // c1, c2, lambda (0 sum .. 1 product), threshold
+uniform vec4 uPat2[${MAXP}];          // mean coverage at duty 0, coverage slope, largest wave number, -
+uniform vec4 uCam;                    // a (complex), b (complex): w = a p + b
+uniform vec4 uFlow;                   // A (stream strength), tilt, lens, |a|
+uniform vec4 uPole[${POLES}];         // kappa (complex), charge q: z -= q log(1 - kappa w)
+uniform vec4 uDbl;                    // D (complex), e (complex): z += D / (w - e)
+uniform vec4 uRef;                    // z at the reference point (complex), global duty, -
+uniform vec4 uPlate[3];               // per ink: screen offset (xy), offset along u, twist
+uniform vec3 uInk[3];
+uniform vec3 uPaper;
+uniform vec4 uMode;                   // colour amount (0 = one black plate), -, -, -
+uniform vec4 uRec;                    // record view: blend, u at centre, u per unit radius, wave stretch
+
+out vec4 outColor;
+
+vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+vec2 cdiv(vec2 a, vec2 b) { return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / max(dot(b, b), 1e-12); }
+vec2 clog(vec2 a) { return vec2(0.5 * log(max(dot(a, a), 1e-24)), atan(a.y, a.x)); }
+
+vec2 pat(int k, float u, float v) {
+  int b = k * ${WAVES};
+  vec4 w0 = uWave[b], w1 = uWave[b + 1], w2 = uWave[b + 2];
+  vec4 w3 = uWave[b + 3], w4 = uWave[b + 4], w5 = uWave[b + 5];
+  float g1 = uPat[k].x + w0.w * cos(w0.x * u + w0.y * v + w0.z)
+                       + w1.w * cos(w1.x * u + w1.y * v + w1.z)
+                       + w2.w * cos(w2.x * u + w2.y * v + w2.z);
+  float g2 = uPat[k].y + w3.w * cos(w3.x * u + w3.y * v + w3.z)
+                       + w4.w * cos(w4.x * u + w4.y * v + w4.z)
+                       + w5.w * cos(w5.x * u + w5.y * v + w5.z);
+  return vec2(g1, g2);
+}
+
+// One printing plate: the fraction of paper showing (1) or ink (0) at screen point p.
+float plate(vec2 p, vec4 off) {
+  p += off.xy;
+  // the lens: a soft push toward the viewer round the middle of the frame
+  p *= 1.0 - uFlow.z * exp(-1.6 * dot(p, p));
+  // the tilt: the screen as a plane falling away, with no lighting, only foreshortening
+  float ty = 1.0 / max(1.0 - uFlow.y * p.y, 0.05);
+  p *= ty;
+  vec2 w = cmul(uCam.xy, p) + uCam.zw;
+
+  // the flow
+  vec2 z = uFlow.x * w;
+  vec2 dz = vec2(uFlow.x, 0.0);
+  for (int j = 0; j < ${POLES}; j++) {
+    vec4 pl = uPole[j];
+    vec2 t = vec2(1.0, 0.0) - cmul(pl.xy, w);
+    z -= pl.z * clog(t);
+    dz += pl.z * cdiv(pl.xy, t);
+  }
+  vec2 d = w - uDbl.zw;
+  vec2 di = cdiv(vec2(1.0, 0.0), d);
+  z += cmul(uDbl.xy, di);
+  dz -= cmul(uDbl.xy, cmul(di, di));
+  z -= uRef.xy;
+
+  float px = 2.0 / uRes.y;
+  float J = length(dz) * uFlow.w * ty * ty * px;       // ribbon units per pixel
+  float u = z.x;
+  float v = z.y;
+  float uw = u;                                        // u as the waves see it
+
+  // the record: the same ribbon, laid out so the whole song fits on one disc
+  if (uRec.x > 0.0) {
+    float r = length(p);
+    float ur = uRec.y - uRec.z * r;
+    u = mix(u, ur, uRec.x);
+    uw = mix(uw, ur * uRec.w, uRec.x);
+    J = mix(J, uRec.z * uRec.w * px, uRec.x);
+  }
+  u += off.z;
+  uw += off.z;
+  v += off.w * uw;
+
+  // what is painted here
+  float x = clamp(uRib.x + u * uRib.y, 0.0, uRib.z);
+  float xi = floor(x);
+  vec4 rb = mix(texelFetch(uRibbon, ivec2(int(xi), 0), 0),
+                texelFetch(uRibbon, ivec2(int(min(xi + 1.0, uRib.z)), 0), 0), x - xi);
+  int ia = int(floor(rb.x));
+  float m = rb.x - float(ia);
+  ia = clamp(ia, 0, ${MAXP - 1});
+  int ib = min(ia + 1, ${MAXP - 1});
+  v += rb.z;
+
+  vec2 g = pat(ia, uw, v);
+  vec4 pa = uPat[ia];
+  vec4 qa = uPat2[ia];
+  if (m > 0.002) {
+    g = mix(g, pat(ib, uw, v), m);
+    pa = mix(pa, uPat[ib], m);
+    qa = mix(qa, uPat2[ib], m);
+  }
+  float duty = rb.y + uRef.z;
+  float f = mix(g.x + g.y, g.x * g.y, pa.z) - pa.w - duty;
+
+  // counterchange: black and white swap sides across a hard edge that travels with the ribbon
+  f *= clamp(rb.w / max(J * 0.75, 1e-6), -1.0, 1.0);
+
+  float aa = clamp(f / max(fwidth(f), 1e-6) * 0.75 + 0.5, 0.0, 1.0);
+  // too fine to draw: show the even grey that fine lines really make, never sparkle
+  float res = 1.0 - smoothstep(1.1, 2.4, qa.z * J);
+  float mean = clamp(qa.x - qa.y * duty, 0.0, 1.0);
+  mean = mix(mean, 1.0 - mean, step(rb.w, 0.0));
+  return mix(mean, aa, res);
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / (0.5 * uRes.y);
+  vec3 col;
+  if (uMode.x < 0.001) {
+    col = vec3(plate(p, vec4(0.0)));
+  } else {
+    float c0 = plate(p, uPlate[0]);
+    float c1 = plate(p, uPlate[1]);
+    float c2 = plate(p, uPlate[2]);
+    col = uPaper * mix(uInk[0], vec3(1.0), c0) * mix(uInk[1], vec3(1.0), c1) * mix(uInk[2], vec3(1.0), c2);
+  }
+  outColor = vec4(col, 1.0);
+}`;

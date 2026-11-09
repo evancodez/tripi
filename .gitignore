@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+.claude/
+lab-out/
+
+# songs and video stay local (copyrighted): drop them on the page instead
+media
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.ogg
+*.aac
+*.opus
+*.mp4
+*.webm
+*.mov
