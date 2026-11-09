@@ -7,6 +7,12 @@ It listens to the whole song first (beats, bars, sections, the tune, the tone, t
 whole film from that, and only then plays. Playing is a table lookup and one draw call a frame, so
 nothing is built while the music runs.
 
+**A song becomes a record.** The whole film is painted along one strip, so once a song has been heard
+you can see all of it at once: a disc with the first second at the rim and the last at the label,
+each band wearing the pattern of that part of the song. Play dives into the groove. Pause, or the end
+of the song, rises back out until the whole record is in view. Click any groove to dive in there. What
+has been played is printed in negative, and the edge where it turns is the needle.
+
 ## Run it
 
 ```bash
@@ -29,15 +35,14 @@ Songs are never copied into this project, and `.gitignore` keeps audio out of gi
 
 | Key | |
 | --- | --- |
-| `space` | play / pause |
+| `space` | play (dive in) / pause (rise out to the record) |
+| click | on the record: play from that groove. In the film: pause |
 | `c` | colour: three ink plates slip out of register |
-| `n` | a new take: a different film for the same song |
+| `n` | a new take: a different film for the same song, pressed as a new record |
 | `←` `→` | back / forward ten seconds |
 | `f` | full screen |
-| `h` | hide everything but the film |
-| `esc` | back to the song list |
-
-The thin line along the bottom is where you are in the song; click it to jump.
+| `h` | hide the lettering |
+| `esc` | the song list |
 
 ## How it works
 
@@ -51,6 +56,11 @@ flow: a uniform stream is the ribbon lying flat, a point source is the ribbon ro
 a source and a sink make a dipole, three sources a flower. Any two views blend into each other and
 stay seamless, and squares stay square however the ribbon is bent. It is all in
 [src/gl/shader.js](src/gl/shader.js) and [src/film/view.js](src/film/view.js).
+
+**The record** is that same tunnel seen from outside. Time runs down its radius on the same logarithm
+as in the film, only squeezed until the whole song fits, and the lattice is made a whole number of
+times finer, which keeps it seamless and its cells square. Rising out to it, the camera settles into
+a plain tunnel, every cell divides, and the song's bands crowd in from the edges.
 
 **What the song does.**
 
@@ -72,7 +82,7 @@ stay seamless, and squares stay square however the ribbon is bent. It is all in
 | [src/film/patterns.js](src/film/patterns.js) | The pattern library |
 | [src/film/ribbon.js](src/film/ribbon.js) | Paints the ribbon texture |
 | [src/gl/renderer.js](src/gl/renderer.js) | One program, one draw call |
-| [src/main.js](src/main.js) | The page: loading, playback, keys |
+| [src/main.js](src/main.js) | The page: loading, playback, the record, keys |
 
 ## Checking it
 
@@ -88,7 +98,7 @@ draws a whole film frame by frame and reports flashes, flicker and jolts.
 node tools/lab.mjs tools/play.mjs --size 3024,1964 --song disclosure --secs 40
 ```
 
-plays a song for real and times every frame.
+plays a song for real and times every frame (add `--record` to time the rises and dives too).
 
 `tools/listen.mjs` and `tools/direct.mjs` run the listener and the director in Node on a WAV file and
 print what they heard and the shot list.

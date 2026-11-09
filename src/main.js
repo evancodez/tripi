@@ -94,7 +94,7 @@ function songTime() {
 }
 
 function play(from = offset) {
-  if (!song || loading) return;
+  if (!song || (loading && !visit)) return;
   const c = audio();
   if (c.state === 'suspended') c.resume();
   stopSource();
@@ -203,16 +203,26 @@ async function load(name, getData) {
 const loadFile = file => load(file.name.replace(/\.[^.]+$/, ''), () => file.arrayBuffer());
 const loadUrl = (url, name) => load(name || decodeURIComponent(url.split('/').pop()).replace(/\.[^.]+$/, ''), async () => { const r = await fetch(url); if (!r.ok) throw new Error('fetch ' + r.status); return r.arrayBuffer(); });
 
+// A new take is a new pressing: rise to the record (the music keeps playing), draw it back into its label,
+// press the new one, dive back in.
+let visit = false;
 async function newTake() {
   if (!song || loading) return;
   loading = true;
   try {
     take++;
+    visit = true;
     const m = await direct({ type: 'take', seed: take });
+    while (recLin < 0.99) await wait(30);
+    pressWant = 0;
+    while (press > 0.01) await wait(30);
     song.film = m.film;
     setFilm(m.film);
+    pressWant = 1;
     note('take ' + take);
-  } finally { loading = false; }
+    while (press < 0.99) await wait(30);
+    await wait(500);
+  } finally { visit = false; loading = false; }
 }
 
 // songs offered by the local server, if it has a folder of them
@@ -325,7 +335,7 @@ function tick(now) {
     if (t >= song.buffer.duration) { ended(); t = song.buffer.duration; }
   } else t = clock;
 
-  const want = held !== null ? held.B : playing ? 0 : 1;
+  const want = held !== null ? held.B : playing && !visit ? 0 : 1;
   recLin = held !== null ? want : recLin + clamp(want - recLin, -dt / DIVE, dt / RISE);
   press += clamp(pressWant - press, -dt / 0.7, dt / 1.3);
   colour += clamp((colourOn ? 1 : 0) - colour, -dt / 2.2, dt / 2.2);
