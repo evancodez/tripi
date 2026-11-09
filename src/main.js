@@ -104,6 +104,7 @@ function ended() {
   offset = song.buffer.duration;
   body.classList.remove('playing');
   say('space to play it again');
+  wake();
 }
 
 // ---------------------------------------------------------------- loading a song

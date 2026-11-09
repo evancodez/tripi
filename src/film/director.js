@@ -253,6 +253,7 @@ export function compose(a, opts = {}) {
   const melS = smoothArr(a.melody, a.fps * 0.3), melSlow = smoothArr(a.melody, a.fps * 0.55);
   const brS = smoothArr(a.bright, a.fps * 1.2);
   const swayAmp = 0.28 * Math.sqrt(12 / n0);
+  const SWAY_K = { dots: 0.3, hex: 0.3, net: 0.3, tri: 0.6, quasi: 0.4 };   // round and pointed shapes keep their form
   const Wtex = 8192, uMin = -14, uMax = uEnd + 14;
   const swayArr = new Float64Array(Wtex), dutyArr = new Float64Array(Wtex);
   const du = (uMax - uMin) / (Wtex - 1);
@@ -264,7 +265,7 @@ export function compose(a, opts = {}) {
     while (si < NS - 1 && t >= scenes[si].t1) si++;
     const mel = C(melSlow, t);
     const flowless = scenes[si].pattern.name === 'rings' || scenes[si].pattern.name === 'bars';
-    swayArr[i] = swayAmp * mel;
+    swayArr[i] = swayAmp * mel * (SWAY_K[scenes[si].pattern.name] ?? 1);
     dutyArr[i] = clamp(-0.3 * (C(brS, t) - 0.5) + (flowless ? 0.3 * mel : 0), -0.42, 0.42);
   }
   // no lean steeper than about 23 degrees, so shapes sway but keep their form
@@ -396,6 +397,7 @@ export function compose(a, opts = {}) {
     spin[i] = spin[i - 1] + spinS[i] / HZ + tw * (U[i] - U[i - 1]);
   }
 
+  const melNod = smoothArr(a.melody, a.fps * 0.22);
   const view = new Float32Array(NF * V.N), ucam = new Float64Array(NF), spinF = new Float64Array(NF);
   for (let f = 0; f < NF; f++) {
     const t = f / FPS, o = f * V.N, hi = Math.min(NT - 1, Math.round(t * HZ));
@@ -403,6 +405,8 @@ export function compose(a, opts = {}) {
     const e = scenes[sceneAt(t)].energy;
     view[o + V.LENS] += (0.03 + 0.07 * e * (0.4 + 0.6 * drive)) * clamp(kick[hi], 0, 1.3) - 0.07 * wind[hi] * (gate[hi] < 1 ? 1 : 0) + 0.1 * Math.max(0, gate[hi] - 1) / rush;
     view[o + V.TWIST] = twistS[hi];
+    // the tune tips the whole picture: high notes lift the far edge, low ones let it fall
+    view[o + V.TILT] += 0.15 * C(melNod, t);
     // the ink swells on each strong beat: every shape on screen at once, crisp, and back
     view[o + V.DUTY] = (0.05 + 0.1 * e * (0.4 + 0.6 * drive)) * clamp(kickSoft[hi], 0, 1.3);
     // colour: the plates sit nearly in register, slip apart as the song gets loud, and jump on the strong beats;
