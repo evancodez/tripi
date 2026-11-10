@@ -40,6 +40,7 @@ Songs are never copied into this project, and `.gitignore` keeps audio out of gi
 | `c` | colour: three ink plates slip out of register |
 | `n` | a new take: a different film for the same song, pressed as a new record |
 | `←` `→` | back / forward ten seconds |
+| `[` `]` | nudge the picture earlier / later against the sound, 20 ms a press (for wireless speakers; remembered) |
 | `f` | full screen |
 | `h` | hide the lettering |
 | `esc` | the song list |
@@ -47,9 +48,20 @@ Songs are never copied into this project, and `.gitignore` keeps audio out of gi
 ## How it works
 
 **One idea.** The whole song is painted along one endless strip of pattern, the *ribbon*, and the film
-is a camera travelling down it. A pattern is a few interfering waves; the picture is black where
-their sum is negative and white where it is positive. One pattern morphs into the next where two
-stretches of ribbon meet, so a change is a place you travel through, and you can see it coming.
+is a camera travelling down it. One pattern morphs into the next where two stretches of ribbon meet, so
+a change is a place you travel through, and you can see it coming.
+
+**Four kinds of picture**, all black where a field is below a threshold and white above it:
+
+| Kind | What it is | What it does on a strong beat |
+| --- | --- | --- |
+| Waves | A few interfering waves: stripes, checks, triangles, spirals, moiré | The flow strides, the ink swells |
+| Liquid | Stripes (or a checkerboard) on a coordinate that other waves keep bending | The same, while it never stops flowing |
+| Weave | Tiles of quarter-circle ribbons that join into a labyrinth or a braid | Tiles lift, turn a quarter and are home as the beat lands |
+| Halftone | A grid of dots, squares or targets whose size is itself a moving field | Neighbours trade size; squares turn; targets send out a ring |
+
+**Bubbles.** In some scenes a big lens sails across the frame from one side to the other. Inside it the
+same picture is bulged like a glass ball and printed in negative; two that overlap cancel.
 
 **One shader.** The camera looks at the ribbon through a conformal map built like a 2D potential
 flow: a uniform stream is the ribbon lying flat, a point source is the ribbon rolled into a tunnel,
@@ -67,7 +79,7 @@ a plain tunnel, every cell divides, and the song's bands crowd in from the edges
 | In the song | On screen |
 | --- | --- |
 | Sections and phrases | Which pattern is painted where on the ribbon; the camera's moves land on them |
-| Strong beats (1 and 3) | The flow strides forward, the picture pushes toward you, the ink swells |
+| Strong beats (1 and 3) | The flow strides forward, the picture pushes toward you, the ink swells, tiles turn and shapes trade size. Everything is timed to be at its height as the beat lands, not after it |
 | Tempo | The flow is locked to it: a whole number of pattern periods passes on every strong beat |
 | The tune | Drawn into the ribbon as sway; the picture tips up and down with it |
 | Tone (bright or dark) | Ink weight: bright sound thins the lines, dark sound fills them |

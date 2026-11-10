@@ -27,7 +27,7 @@ export function createRenderer(canvas) {
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('link: ' + gl.getProgramInfoLog(prog));
   gl.useProgram(prog);
   const U = {};
-  for (const n of ['uRes', 'uRibbon', 'uRib', 'uWave', 'uPat', 'uPat2', 'uStream', 'uPole', 'uDbl', 'uRef', 'uPlate', 'uInk', 'uPaper', 'uMode', 'uRec', 'uRec2']) {
+  for (const n of ['uRes', 'uRibbon', 'uRib', 'uWave', 'uPat', 'uPat2', 'uStream', 'uPole', 'uDbl', 'uRef', 'uPlate', 'uInk', 'uPaper', 'uMode', 'uRec', 'uRec2', 'uBeat', 'uBub']) {
     U[n] = gl.getUniformLocation(prog, n);
   }
   const vao = gl.createVertexArray();
@@ -50,6 +50,7 @@ export function createRenderer(canvas) {
   const pat2 = new Float32Array(MAXP * 4);
   const pole = new Float32Array(POLES * 4);
   const plate = new Float32Array(12);
+  const bub = new Float32Array(8);
   const ink = new Float32Array(9);
   let ribbon = null;
 
@@ -59,8 +60,8 @@ export function createRenderer(canvas) {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, rb.W, 1, 0, gl.RGBA, gl.FLOAT, rb.data);
     for (let k = 0; k < MAXP; k++) {
       const p = rb.patterns[Math.min(k, rb.patterns.length - 1)];
-      pat[k * 4] = p.c1; pat[k * 4 + 1] = p.c2; pat[k * 4 + 2] = p.lam; pat[k * 4 + 3] = p.b;
-      pat2[k * 4] = p.cov0; pat2[k * 4 + 1] = p.covSlope; pat2[k * 4 + 2] = 1; pat2[k * 4 + 3] = 0;
+      pat[k * 4] = p.kind; pat[k * 4 + 1] = p.p[0]; pat[k * 4 + 2] = p.p[1]; pat[k * 4 + 3] = p.p[2];
+      pat2[k * 4] = p.cov0; pat2[k * 4 + 1] = p.covSlope; pat2[k * 4 + 2] = 1; pat2[k * 4 + 3] = p.b;
     }
     gl.uniform4fv(U.uPat, pat);
   }
@@ -76,23 +77,31 @@ export function createRenderer(canvas) {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.uniform2f(U.uRes, canvas.width, canvas.height);
 
-    const twist = s[V.TWIST];
+    const twist = s[V.TWIST], time = f.time || 0, lean = 1 + 0.7 * Math.abs(twist);
     const pats = ribbon.patterns, np = pats.length;
     for (let k = 0; k < MAXP; k++) {
       const p = pats[k < np ? k : np - 1];
-      let kmax = 0;
       for (let i = 0; i < WAVES; i++) {
         const w = p.w[i], o = (k * WAVES + i) * 4;
-        const a = w.a + w.n * twist;
-        wave[o] = a; wave[o + 1] = w.n;
-        let ph = (w.a * f.ucam + w.n * f.spin + w.ph) % TAU;
-        wave[o + 2] = ph; wave[o + 3] = w.amp;
-        if (w.amp !== 0) { const kk = a * a + w.n * w.n; if (kk > kmax) kmax = kk; }
+        if (w.raw) { wave[o] = w.raw[0]; wave[o + 1] = w.raw[1]; wave[o + 2] = w.raw[2]; wave[o + 3] = w.raw[3]; }
+        else if (w.grid) {
+          // a grid: cells round the tunnel, where the camera is in cells, how fast a beat travels
+          const c = w.grid / TAU;
+          wave[o] = w.grid; wave[o + 1] = f.ucam * c; wave[o + 2] = ((f.spin * c) % w.grid + w.grid) % w.grid; wave[o + 3] = w.sigma;
+        } else {
+          wave[o] = w.a; wave[o + 1] = w.n;
+          wave[o + 2] = (w.a * f.ucam + w.n * f.spin + w.ph + (w.rate || 0) * time) % TAU;
+          wave[o + 3] = w.amp;
+        }
       }
-      pat2[k * 4 + 2] = Math.sqrt(kmax);
+      pat2[k * 4 + 2] = p.fine * lean;
     }
     gl.uniform4fv(U.uWave, wave);
     gl.uniform4fv(U.uPat2, pat2);
+    gl.uniform4f(U.uBeat, f.beat || 0, twist, time, 0);
+    bub[0] = s[V.B1X]; bub[1] = s[V.B1Y]; bub[2] = s[V.B1R]; bub[3] = 0.85;
+    bub[4] = s[V.B2X]; bub[5] = s[V.B2Y]; bub[6] = s[V.B2R]; bub[7] = 0.85;
+    gl.uniform4fv(U.uBub, bub);
 
     const sr = s[V.SMAG] * Math.cos(s[V.SROT]), si = s[V.SMAG] * Math.sin(s[V.SROT]);
     gl.uniform4f(U.uStream, sr, si, s[V.TILT], s[V.LENS]);

@@ -7,7 +7,7 @@
 // A bare test bed for patterns and views: no song, no director. Driven from tools/lab.mjs.
 import { createRenderer } from '../src/gl/renderer.js';
 import { buildRibbon } from '../src/film/ribbon.js';
-import { PATTERNS } from '../src/film/patterns.js';
+import { PATTERNS, contour, weave, halftone } from '../src/film/patterns.js';
 import { V, squeeze, park } from '../src/film/view.js';
 
 const canvas = document.getElementById('c');
@@ -20,7 +20,11 @@ window.bench = {
   // spec: { seq: [[name, ...args], ...], gap, width, view: {A:1, ZOOM:..}, ucam, spin, colour, duty, sway, flips }
   render(spec) {
     const gap = spec.gap ?? 3, width = spec.width ?? 1.2;
-    const entries = spec.seq.map((s, i) => ({ pattern: PATTERNS[s[0]](...s.slice(1)), u: i * gap, width }));
+    // a seeded random source, so a spec always draws the same picture
+    let sd = spec.seed ?? 5; const r = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+    r.range = (a, b) => a + (b - a) * r(); r.sign = () => r() < 0.5 ? -1 : 1; r.pick = a => a[Math.floor(r() * a.length)];
+    const NEW = { contour, weave, halftone };
+    const entries = spec.seq.map((s, i) => ({ pattern: NEW[s[0]] ? NEW[s[0]](r, s[1], s[2] || {}) : PATTERNS[s[0]](...s.slice(1)), u: i * gap, width }));
     const duty = spec.duty ? new Function('u', 'return ' + spec.duty) : null;
     const sway = spec.sway ? new Function('u', 'return ' + spec.sway) : null;
     R.setRibbon(buildRibbon({ uMin: -20, uMax: entries.length * gap + 20, entries, duty, sway, flips: spec.flips || [] }));
@@ -30,7 +34,7 @@ window.bench = {
     for (const k in spec.view || {}) if (k !== 'poles') view[V[k]] = spec.view[k];
     (spec.view?.poles || []).forEach((p, j) => { if (p) squeeze(p[0], p[1], view, V.P1R + 2 * j); });
     R.resize(innerWidth, innerHeight);
-    R.draw({ view, ucam: spec.ucam ?? 0, spin: spec.spin ?? 0, colour: spec.colour ?? 0, inks: INKS, paper: [1, 0.985, 0.95] });
+    R.draw({ view, ucam: spec.ucam ?? 0, spin: spec.spin ?? 0, beat: spec.beat ?? 0, time: spec.time ?? 0, colour: spec.colour ?? 0, inks: INKS, paper: [1, 0.985, 0.95] });
     R.gl.finish();
     return true;
   },

@@ -26,7 +26,9 @@ export const V = {
   TWIST: 16,
   SPLIT: 17,            // how far the colour plates are out of register
   PLATE: 18,            // the direction they slip in
-  N: 20,
+  B1X: 19, B1Y: 20, B1R: 21,   // a bubble: where it is on screen and how big (0 = none)
+  B2X: 22, B2Y: 23, B2R: 24,   // a second one
+  N: 26,
 };
 export const POLES = 4;
 export const FAR = 0.9998;     // squeezed radius that stands for infinity

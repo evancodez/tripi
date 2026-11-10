@@ -62,6 +62,15 @@ export default async ({ page, args, log }) => {
       const med = near[near.length >> 1];
       if (diff[f] > 0.1 && diff[f] > med * 2.2 + 0.04) jolts.push({ t: f / fps, d: diff[f], med });
     }
+    // how plainly the strong beats show: the change in the picture in the tenth of a second round each strong
+    // beat, against the change half way between beats (1 = the beat is invisible)
+    let on = 0, off = 0, nb = 0;
+    const sb = isIdle ? [] : Array.from(tripi.film.strong);
+    for (let k = 0; k + 1 < sb.length; k++) {
+      const f0 = Math.round(sb[k] * fps), fm = Math.round((sb[k] + sb[k + 1]) / 2 * fps);
+      if (f0 < 2 || fm + 2 >= n) continue;
+      on += Math.max(diff[f0 - 1], diff[f0], diff[f0 + 1], diff[f0 + 2]); off += Math.max(diff[fm - 1], diff[fm], diff[fm + 1], diff[fm + 2]); nb++;
+    }
     const ds = Array.from(diff).sort((a, b) => a - b);
     let still = 0, run = 0, longest = 0, longestAt = 0;
     for (let f = 1; f < n; f++) { if (diff[f] < 0.004) { run++; if (run > longest) { longest = run; longestAt = f / fps; } } else run = 0; }
@@ -74,6 +83,7 @@ export default async ({ page, args, log }) => {
       flickerCount: flick.length,
       jolts: jolts.slice(0, 20).map(x => mmss(x.t) + ' d ' + x.d.toFixed(3) + ' vs ' + x.med.toFixed(3)), joltCount: jolts.length,
       longestStill: (longest / fps).toFixed(1) + ' s at ' + mmss(longestAt),
+      beatContrast: nb ? +(on / off).toFixed(2) : null, strongBeats: nb,
     };
   }, fps, colour, song === 'idle');
   log(JSON.stringify(r, null, 1));

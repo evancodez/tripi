@@ -13,7 +13,7 @@ self.onmessage = e => {
     if (!last) throw new Error('no song');
     const film = compose(last, { seed: m.seed, aspect: m.aspect });
     const info = { bpm: last.bpm, meter: last.meter, key: last.key, sections: last.sections.length, drive: film.drive };
-    self.postMessage({ type: 'film', id: m.id, film, info }, [film.view.buffer, film.ucam.buffer, film.spin.buffer, film.ribbon.data.buffer]);
+    self.postMessage({ type: 'film', id: m.id, film, info }, [film.view.buffer, film.ucam.buffer, film.spin.buffer, film.beat.buffer, film.ribbon.data.buffer]);
   } catch (err) {
     self.postMessage({ type: 'error', id: m.id, message: String(err && err.message || err) });
   }

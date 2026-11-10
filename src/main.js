@@ -48,6 +48,10 @@ let idleClock = 0;
 let held = null;               // lab: a fixed time to draw
 let colourOn = params.get('colour') === '1', colour = colourOn ? 1 : 0;
 let take = +(params.get('take') || 1);
+// If the picture runs ahead of or behind the sound on your speakers (wireless ones are often late), [ and ]
+// nudge it, 20 ms a press. It is remembered.
+let sync = 0;
+try { sync = +(localStorage.getItem('tripi.sync') || 0) || 0; } catch {}
 let recLin = 1;                // 1 = the whole record, 0 = inside the film
 let press = 1;                 // 1 = the record pressed out to its rim, 0 = drawn back into the label
 let pressWant = 1;
@@ -298,6 +302,12 @@ addEventListener('keydown', e => {
   else if (k === 'n') { newTake(); }
   else if (k === 'arrowright') { seek(clock + 10); }
   else if (k === 'arrowleft') { seek(clock - 10); }
+  else if (k === '[' || k === ']') {
+    sync = clamp(sync + (k === ']' ? 0.02 : -0.02), -0.4, 0.4);
+    try { localStorage.setItem('tripi.sync', sync.toFixed(2)); } catch {}
+    const ms = Math.round(sync * 1000);
+    note(ms === 0 ? 'picture in step with the sound' : 'picture ' + Math.abs(ms) + ' ms ' + (ms > 0 ? 'later' : 'earlier'));
+  }
   else if (k === 'escape') { if (song && !loading) { if (playing) pause(); body.classList.toggle('list'); $('say').textContent = 'drop a song anywhere'; } }
 });
 
@@ -312,6 +322,8 @@ function relax(s, x) {
   s[V.SMAG] *= y; s[V.TILT] *= y; s[V.LENS] *= y; s[V.DUTY] *= y; s[V.TWIST] *= y; s[V.DR] *= y;
   s[V.P1R] *= y;
   for (const o of [V.P2R, V.P3R, V.PSR]) s[o] += (FAR - s[o]) * x;
+  // any bubble sails off the side it is nearer
+  for (const o of [V.B1X, V.B2X]) if (s[o + 2] > 0) s[o] += (s[o] < 0 ? -1 : 1) * 4.5 * x * x;
 }
 
 function draw(t, B, rout, dt) {
@@ -339,8 +351,8 @@ function tick(now) {
     clock += dt;
     const err = songTime() - clock;
     if (Math.abs(err) > 0.08) clock += err; else clock += err * 0.06;
-    t = clock;
-    if (t >= song.buffer.duration) { ended(); t = song.buffer.duration; }
+    t = clock - sync;
+    if (clock >= song.buffer.duration) { ended(); t = song.buffer.duration; }
   } else t = clock;
 
   const want = held !== null ? held.B : playing && !visit ? 0 : 1;

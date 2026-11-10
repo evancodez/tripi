@@ -6,7 +6,7 @@
 //   4. the bake      everything sampled 60 times a second into flat tables
 //
 // Playing the film is then only a table lookup and one draw call. Pure JavaScript, no DOM.
-import { PATTERNS } from './patterns.js';
+import { PATTERNS, contour, weave, halftone } from './patterns.js';
 import { buildRibbon } from './ribbon.js';
 import { V, squeeze, park, pole } from './view.js';
 import { MAXP } from '../gl/shader.js';
@@ -130,43 +130,67 @@ export function compose(a, opts = {}) {
 
   // ---- 1. the cast: which pattern each scene wears
   const n0 = drive < 0.35 ? 8 : drive < 0.6 ? 10 : 12;      // calmer songs get bigger, calmer shapes
-  const POOL = {
-    calm: [['rings', 3], ['rays', 2], ['spiral', 3], ['dots', 3], ['net', 2], ['bars', 2], ['diamond', 2], ['hex', 2]],
-    mid: [['checks', 3], ['diamond', 2], ['hex', 2], ['petal', 3], ['whirl', 3], ['harlequin', 3], ['spiral', 2], ['dots', 2], ['tri', 2], ['bars', 1]],
-    high: [['tri', 3], ['harlequin', 3], ['checks', 3], ['whirl', 3], ['petal', 2], ['moire', 2], ['quasi', 1], ['diamond', 1]],
+  // Each entry: name, the kind of thing it is (two scenes running never share a kind), a weight, and how to
+  // make it for a scene. Four kinds of picture: lattices of waves, liquid stripes, a weave of tiles that
+  // re-ties itself on the beat, and halftone shapes that swell on it.
+  const fineN = s => (R() < (s.bright - 0.5) * 0.9 + (s.energy > 0.8 ? 0.08 : 0)) ? n0 * 2 : n0;
+  const every = s => s.energy > 0.72 ? R.pick([1, 1, 2]) : s.energy > 0.34 ? 2 : 4;
+  const sig = s => s && s.energy > 0.6 ? R.range(0.06, 0.16) : R.range(0.22, 0.45);
+  const CAST = {
+    calm: [
+      ['liquid', 'liquid', 4, s => contour(R, n0, { a: R.pick([n0, n0 * 0.7, 0]), n: R.pick([0, 0, n0]), warp: R.range(0.35, 0.6), speed: 0.7, b: R.pick([0, 0, -0.55]) })],
+      ['halftone', 'dots', 3, s => halftone(R, n0, R() < 0.5 ? { radius: R.range(0.25, 0.3), sign: R.sign(), swell: 0.05, breathe: 0.05, sigma: sig(s), quincunx: true } : { radius: R.range(0.34, 0.42), sign: R.sign(), swell: 0.06, breathe: 0.05, sigma: sig(s) })],
+      ['weave', 'weave', 3, s => weave(R, n0, { rings: 1, sign: -1, b: -0.62, every: 4, sigma: sig(s) })],
+      ['rings', 'waves', 2, s => PATTERNS.rings(n0)],
+      ['spiral', 'waves', 2, s => PATTERNS.spiral(n0, n0, R.sign())],
+      ['bars', 'waves', 1, s => PATTERNS.bars(n0, n0)],
+      ['net', 'waves', 1, s => PATTERNS.net(n0)],
+    ],
+    mid: [
+      ['weave', 'weave', 3, s => weave(R, fineN(s), { rings: 1, sign: R.sign(), every: every(s), sigma: sig(s) })],
+      ['braid', 'weave', 3, s => weave(R, n0, { rings: 3, sign: R.sign(), every: every(s), sigma: sig(s) })],
+      ['halftone', 'dots', 3, s => halftone(R, fineN(s), { radius: R.range(0.25, 0.31), sign: R.sign(), swell: 0.05 + 0.05 * s.energy, breathe: 0.05, sigma: sig(s), quincunx: true })],
+      ['blocks', 'dots', 2, s => halftone(R, n0, { radius: R.range(0.19, 0.23), square: 1, turn: R.pick([0, 1]), sign: R.sign(), swell: 0.04, breathe: 0.03, sigma: sig(s), quincunx: true })],
+      ['melt', 'liquid', 3, s => contour(R, n0, { a: n0, n: 0, warp: R.range(0.4, 0.7), cross: 1 })],
+      ['liquid', 'liquid', 3, s => contour(R, n0, { a: R.pick([n0, n0, 0]), n: R.pick([0, n0]), warp: R.range(0.6, 0.9) })],
+      ['checks', 'waves', 2, s => PATTERNS.checks(fineN(s))],
+      ['harlequin', 'waves', 2, s => PATTERNS.harlequin(n0)],
+      ['petal', 'waves', 2, s => PATTERNS.petal(n0)],
+      ['whirl', 'waves', 2, s => PATTERNS.whirl(n0, n0)],
+      ['tri', 'waves', 2, s => PATTERNS.tri(n0)],
+    ],
+    high: [
+      ['braid', 'weave', 4, s => weave(R, fineN(s), { rings: 3, sign: R.sign(), every: every(s), sigma: sig(s) })],
+      ['weave', 'weave', 2, s => weave(R, n0, { rings: 1, sign: R.sign(), every: 1, sigma: sig(s) })],
+      ['targets', 'dots', 3, s => halftone(R, n0, { rings: R.pick([2, 3]), emit: 1, sign: R.sign(), swell: 0.1, breathe: 0.05, sigma: sig(s), quincunx: R() < 0.5 })],
+      ['halftone', 'dots', 2, s => halftone(R, fineN(s), { radius: R.range(0.26, 0.31), sign: R.sign(), swell: 0.09, breathe: 0.05, sigma: sig(s), quincunx: true })],
+      ['blocks', 'dots', 2, s => halftone(R, n0, { radius: R.range(0.19, 0.23), square: 1, turn: 1, sign: R.sign(), swell: 0.045, breathe: 0.03, sigma: sig(s), quincunx: true })],
+      ['melt', 'liquid', 3, s => contour(R, n0, { a: n0, n: 0, warp: R.range(0.6, 0.95), cross: 1, speed: 1.3 })],
+      ['liquid', 'liquid', 3, s => contour(R, n0, { a: R.pick([n0, n0 * 1.5]), n: R.pick([0, n0]), warp: R.range(0.8, 1.1), speed: 1.3 })],
+      ['tri', 'waves', 2, s => PATTERNS.tri(fineN(s))],
+      ['harlequin', 'waves', 2, s => PATTERNS.harlequin(fineN(s))],
+      ['checks', 'waves', 2, s => PATTERNS.checks(n0)],
+      ['moire', 'waves', 1, s => PATTERNS.moire(n0 * 3, n0 * 3, R.pick([1, 2, 3]), R.pick([0, 0, n0 / 2]))],
+      ['whirl', 'waves', 1, s => PATTERNS.whirl(n0, n0)],
+    ],
   };
   const home = new Map();
   const labelCount = new Map();
   for (const s of scenes) if (s.first) labelCount.set(s.label, (labelCount.get(s.label) || 0) + 1);
-  let prev = '', prev2 = '';
-  const makePattern = (name, s) => {
-    const fine = R() < (s.bright - 0.5) * 0.9 + (s.energy > 0.8 ? 0.08 : 0);
-    let n = fine ? n0 * 2 : n0;
-    switch (name) {
-      case 'spiral': return PATTERNS.spiral(n, n, R.sign());
-      case 'dots': return PATTERNS.dots(n, n, R.range(0.2, 0.34) * R.weighted([[1, 2], [-1, 2]]));
-      case 'hex': return PATTERNS.hex(n, R.weighted([[0.2, 2], [-0.12, 2]]));
-      case 'moire': return PATTERNS.moire(n0 * 3, n0 * 3, R.pick([1, 2, 3]), R.pick([0, 0, n0 / 2]));
-      case 'quasi': return PATTERNS.quasi(n0 * 1.5);
-      case 'bars': return PATTERNS.bars(n0, n0);
-      case 'tri': return PATTERNS.tri(n);
-      case 'whirl': return PATTERNS.whirl(n, n);
-      default: return PATTERNS[name](n);
-    }
-  };
+  let prev = '', prev2 = '', prevKind = '';
   scenes.forEach((s, i) => {
     const tier = s.energy < 0.34 ? 'calm' : s.energy < 0.72 ? 'mid' : 'high';
-    let name;
     const h = home.get(s.label);
-    if (s.first && h && h !== prev && labelCount.get(s.label) > 1) name = h;
+    if (s.first && h && h.name !== prev && h.world !== prevKind && labelCount.get(s.label) > 1) s.pattern = h;
     else {
-      const pool = POOL[tier].filter(p => p[0] !== prev && p[0] !== prev2);
-      name = R.weighted(pool);
-      if (s.first && !h) home.set(s.label, name);
+      const pool = CAST[tier].filter(p => p[0] !== prev && p[0] !== prev2 && p[1] !== prevKind);
+      const pick = R.weighted(pool.map(p => [p, p[2]]));
+      s.pattern = pick[3](s);
+      s.pattern.world = pick[1];
+      if (s.first && !h) home.set(s.label, s.pattern);
     }
-    s.pattern = makePattern(name, s);
-    s.name = name;
-    prev2 = prev; prev = name;
+    s.name = s.pattern.name;
+    prev2 = prev; prev = s.name; prevKind = s.pattern.world;
   });
   // ---- 2. the flow
   const HZ = 240, NT = Math.ceil((dur + 1) * HZ) + 1;
@@ -174,12 +198,12 @@ export function compose(a, opts = {}) {
   for (const s of scenes) {
     // The flow is locked to the song: a whole number of the pattern's own periods passes "now" on every
     // strong beat (or one every two, or two a beat), whichever is nearest the pace the scene's energy asks for.
-    s.alpha = Math.max(...s.pattern.w.map(w => w.amp ? Math.abs(w.a) : 0)) || n0;
+    s.alpha = s.pattern.alpha || n0;
     const hz = 0.36 + 0.8 * s.energy * (0.45 + 0.55 * drive);
     let m = 1, bd = 1e9;
     for (const c of [0.25, 0.5, 1, 2]) { const d = Math.abs(Math.log(c / strongLen / hz)); if (d < bd) { bd = d; m = c; } }
     s.speed = m * (TAU / s.alpha) / strongLen;
-    s.stride = 0.2 + 0.55 * s.energy * (0.4 + 0.6 * drive);
+    s.stride = 0.15 + 0.4 * s.energy * (0.4 + 0.6 * drive);
     for (let i = Math.floor(s.t0 * HZ); i < Math.min(NT, Math.ceil(s.t1 * HZ)); i++) { base[i] = s.speed; depth[i] = s.stride; }
   }
   for (let i = Math.ceil(dur * HZ) - 1; i < NT; i++) { base[i] = base[Math.max(0, Math.ceil(dur * HZ) - 2)]; depth[i] = 0; }
@@ -191,7 +215,8 @@ export function compose(a, opts = {}) {
   const kick = new Float64Array(NT);
   for (const t of strong) {
     const amp = 0.55 + 0.45 * clamp(C(a.onset, t) * 1.5 + C(a.bass, t + 0.03), 0, 1);
-    for (let i = Math.floor(t * HZ), j = 0; i < NT && j < HZ * 1.6; i++, j++) { const x = j / HZ; kick[i] += amp * (1 - Math.exp(-x / 0.045)) * Math.exp(-x / 0.24); }
+    // it gathers in the 70 ms before the beat and is at its height as the beat lands, then falls away
+    for (let i = Math.max(0, Math.floor((t - 0.07) * HZ)); i < NT && i < (t + 1.6) * HZ; i++) { const x = i / HZ - t; kick[i] += amp * (x < 0 ? ss(1 + x / 0.07) : Math.exp(-x / 0.22)); }
   }
   const kickMean = smoothArr(kick, HZ * barLen * 0.5), kickSoft = smoothArr(kick, HZ * 0.07);
   // wind-up and release round the big arrivals; the long ease to a stop at the end
@@ -265,7 +290,7 @@ export function compose(a, opts = {}) {
     while (si < NS - 1 && t >= scenes[si].t1) si++;
     const mel = C(melSlow, t);
     const flowless = scenes[si].pattern.name === 'rings' || scenes[si].pattern.name === 'bars';
-    swayArr[i] = swayAmp * mel * (SWAY_K[scenes[si].pattern.name] ?? 1);
+    swayArr[i] = swayAmp * mel * (scenes[si].pattern.sway ?? SWAY_K[scenes[si].pattern.name] ?? 1);
     dutyArr[i] = clamp(-0.3 * (C(brS, t) - 0.5) + (flowless ? 0.3 * mel : 0), -0.42, 0.42);
   }
   // no lean steeper than about 23 degrees, so shapes sway but keep their form
@@ -308,7 +333,7 @@ export function compose(a, opts = {}) {
   const addKey = (t, s) => { if (keysT.length && t <= keysT[keysT.length - 1] + 0.05) t = keysT[keysT.length - 1] + 0.05; keysT.push(t); keysS.push(s); };
   scenes.forEach((s, i) => {
     const tier = s.energy < 0.34 ? 'calm' : s.energy < 0.72 ? 'mid' : 'high';
-    const nMax = Math.max(n0, ...s.pattern.w.map(w => Math.abs(w.n)), ...s.pattern.w.map(w => Math.abs(w.a) * 0.9));
+    const nMax = Math.max(n0, s.pattern.grain);
     const isFine = nMax > n0 * 1.5;
     const pool = kinds[tier].filter(k => k[0] !== lastKind && k[0] !== lastKind2
       && !(isFine && (k[0] === 'fine' || k[0] === 'floor'))             // fine lines stay close to the camera
@@ -398,6 +423,24 @@ export function compose(a, opts = {}) {
   }
 
   const melNod = smoothArr(a.melody, a.fps * 0.22);
+  // Bubbles: in some scenes a big lens sails across the frame, edge to edge, showing its part of the picture
+  // bulged and in negative. It comes in from one side and leaves by the other: it is never switched on or off.
+  // A loud scene may get two, crossing.
+  const bubbles = [];
+  {
+    let last = -2;
+    scenes.forEach((s, i) => {
+      const len = s.t1 - s.t0;
+      if (i === 0 || i === NS - 1 || i - last < 2 || s.energy < 0.3 || len < 9 || R() > 0.6) return;
+      last = i;
+      const n = s.energy > 0.7 && R() < 0.5 ? 2 : 1;
+      for (let k = 0; k < n; k++) {
+        const r = R.range(0.42, 0.78) * (n === 2 ? 0.8 : 1), sg = k === 0 ? R.sign() : -bubbles[bubbles.length - 1].sg;
+        const y0 = R.range(-0.5, 0.5), y1 = R.range(-0.5, 0.5), far = aspect + r + 0.15;
+        bubbles.push({ slot: k, sg, r, t0: s.t0 - R.range(0.5, 2), t1: s.t1 + R.range(0.5, 2), x0: -sg * far, y0, x1: sg * far, y1 });
+      }
+    });
+  }
   const view = new Float32Array(NF * V.N), ucam = new Float64Array(NF), spinF = new Float64Array(NF);
   for (let f = 0; f < NF; f++) {
     const t = f / FPS, o = f * V.N, hi = Math.min(NT - 1, Math.round(t * HZ));
@@ -408,15 +451,35 @@ export function compose(a, opts = {}) {
     // the tune tips the whole picture: high notes lift the far edge, low ones let it fall
     view[o + V.TILT] += 0.15 * C(melNod, t);
     // the ink swells on each strong beat: every shape on screen at once, crisp, and back
-    view[o + V.DUTY] = (0.05 + 0.1 * e * (0.4 + 0.6 * drive)) * clamp(kickSoft[hi], 0, 1.3);
+    view[o + V.DUTY] = (0.06 + 0.15 * e * (0.4 + 0.6 * drive)) * clamp(kickSoft[hi], 0, 1.3);
     // colour: the plates sit nearly in register, slip apart as the song gets loud, and jump on the strong beats;
     // sized against the pattern, so fine patterns fringe instead of turning to confetti
     const lam = TAU / alphaS[hi];
     view[o + V.SPLIT] = lam * (0.22 + 0.75 * C(a.loudSlow, t) * e + 0.3 * Math.abs(C(melS, t)) + 0.4 * clamp(kickSoft[hi], 0, 1.2) * (0.3 + 0.7 * e));
     view[o + V.PLATE] = 0.05 * t + 2.2 * twistS[hi];
+    for (const b of bubbles) {
+      if (t < b.t0 || t > b.t1) continue;
+      const x = (t - b.t0) / (b.t1 - b.t0), q = V.B1X + 3 * b.slot;
+      view[o + q] = lerp(b.x0, b.x1, x); view[o + q + 1] = lerp(b.y0, b.y1, ss(x)) + 0.05 * Math.sin(t * 0.7 + b.r * 9);
+      view[o + q + 2] = b.r * (1 + 0.035 * clamp(kickSoft[hi], 0, 1.2));       // it breathes on the strong beats
+    }
     ucam[f] = Uat(t); spinF[f] = spin[hi];
   }
 
+  // the strong-beat count: a whole number as each strong beat lands, running evenly between. Across a gap
+  // (a break in the song, or a quiet scene keeping only the 1 of each bar) it keeps counting at the song's pace.
+  const beat = new Float64Array(NF);
+  {
+    const sb = strong.length > 1 ? strong : [0, strongLen];
+    const cum = [0];
+    for (let k = 0; k + 1 < sb.length; k++) cum.push(cum[k] + Math.max(1, Math.round((sb[k + 1] - sb[k]) / strongLen)));
+    let k = 0;
+    for (let f = 0; f < NF; f++) {
+      const t = f / FPS;
+      while (k < sb.length - 2 && t >= sb[k + 1]) k++;
+      beat[f] = cum[k] + (t - sb[k]) / (sb[k + 1] - sb[k]) * (cum[k + 1] - cum[k]);
+    }
+  }
   let closest = 1e9;
   {
     const po = new Float64Array(16);
@@ -429,10 +492,10 @@ export function compose(a, opts = {}) {
   }
   return {
     closest,
-    duration: dur, fps: FPS, frames: NF, view, ucam, spin: spinF, ribbon, drive, n0,
+    duration: dur, fps: FPS, frames: NF, view, ucam, spin: spinF, beat, ribbon, drive, n0,
     palette: (a.key.tonic + (a.key.minor ? 2 : 0) + (opts.seed ?? 1) - 1) % 4,
     strong: Float64Array.from(strong),
-    scenes: scenes.map(s => ({ t0: s.t0, t1: s.t1, energy: s.energy, pattern: s.name, n: Math.max(...s.pattern.w.map(w => Math.abs(w.n))) || Math.round(s.pattern.w[0].a), kind: s.kind, big: s.big, rings: !!s.rings, speed: s.speed })),
+    scenes: scenes.map(s => ({ t0: s.t0, t1: s.t1, energy: s.energy, pattern: s.name, n: Math.round(s.pattern.grain), kind: s.kind, big: s.big, rings: !!s.rings, speed: s.speed })),
   };
 }
 
@@ -443,5 +506,7 @@ export function filmAt(film, t, out) {
   for (let c = 0; c < V.N; c++) o[c] = v[a + c] + (v[b + c] - v[a + c]) * fr;
   out.ucam = film.ucam[i] + (film.ucam[i + 1] - film.ucam[i]) * fr;
   out.spin = film.spin[i] + (film.spin[i + 1] - film.spin[i]) * fr;
+  out.beat = film.beat[i] + (film.beat[i + 1] - film.beat[i]) * fr;
+  out.time = t;
   return out;
 }
